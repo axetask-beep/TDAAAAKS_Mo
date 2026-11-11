@@ -19,6 +19,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.anonymous.axetaskmobile",
+      "googleServicesFile": "./google-services.json",
       "versionCode": 7
     },
     "web": {
