@@ -1,0 +1,132 @@
+name: iOS unsigned build
+
+# Manual trigger only — macOS runner minutes are billed at 10x against the
+# free monthly quota, and we only need a new .ipa when something actually
+# changed, not on every push.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    # expo-modules-jsi's SPM package requires swift-tools-version 6.2, which
+    # needs Xcode 26+ — the macos-14 runner only ever offers Xcode up to 16.x
+    # and fails resolving that package's manifest with a generic "Could not
+    # resolve package dependencies" (nothing to do with network access or
+    # code signing — the manifest itself can't be read by an older toolchain).
+    runs-on: macos-26
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      # Regenerates ios/ from app.json + the installed Expo config plugins.
+      # This repo intentionally never commits ios/ (see .gitignore) so the
+      # native project always reflects the current app.json exactly.
+      - name: Prebuild iOS native project
+        run: npx expo prebuild --platform ios
+
+      # CODE_SIGNING_ALLOWED=NO on the xcodebuild command line only covers
+      # the app target — every CocoaPods target keeps its own signing
+      # settings and still demands an identity when building for a real
+      # device, which is what makes plain `xcodebuild build` fail with the
+      # generic "exit code 65" on an unsigned build otherwise.
+      - name: Patch Podfile to disable code signing on all pod targets
+        run: ruby scripts/patch-podfile-unsigned.rb
+
+      # Expo's generated Podfile defaults EXPO_USE_PRECOMPILED_MODULES to '1',
+      # which tries to link several Expo pods (ExpoModulesCore, EXAV, ...)
+      # against prebuilt xcframework tarballs meant for EAS Build's artifact
+      # cache. We don't have that cache, and the fallback/extraction path is
+      # what produced the "ExpoModulesCore/EXEventEmitter.h file not found"
+      # compile error. Forcing this off makes every Expo pod build from
+      # source instead — slower, but the well-tested path outside of EAS.
+      - name: Install CocoaPods dependencies
+        working-directory: ios
+        env:
+          EXPO_USE_PRECOMPILED_MODULES: "0"
+        run: pod install --repo-update
+
+      # No signing identity or provisioning profile at all: this produces a
+      # plain, unsigned .app. AltServer/SideStore do the actual signing with
+      # your own free Apple ID when you install the .ipa built below — that's
+      # the standard way unsigned/"fakesigned" IPAs are distributed for
+      # sideloading, and it's the only way to build without paying for the
+      # Apple Developer Program.
+      - name: Build unsigned .app (device architecture, no code signing)
+        working-directory: ios
+        run: |
+          set -o pipefail
+          gem install xcpretty --no-document
+
+          xcodebuild \
+            -workspace AxeTask.xcworkspace \
+            -scheme AxeTask \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            -destination "generic/platform=iOS" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build 2>&1 | tee xcodebuild-full.log | xcpretty
+
+      # xcpretty's condensed view above is usually enough, but when it isn't,
+      # this prints every line that looks like an actual diagnostic (as
+      # opposed to the thousands of lines of dependency graph/build-setting
+      # noise xcodebuild emits) straight into the run summary — no need to
+      # download and grep the full log by hand.
+      - name: Show build errors
+        if: failure()
+        working-directory: ios
+        run: |
+          echo '### xcodebuild errors' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          grep -n -E "error:|fatal error|BUILD FAILED|Command .* failed with a nonzero exit code" xcodebuild-full.log >> "$GITHUB_STEP_SUMMARY" || echo "(no lines matched — see the full log artifact)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload full raw build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-full-log
+          path: ios/xcodebuild-full.log
+          retention-days: 14
+
+      # An .ipa is just a zip with a specific Payload/<AppName>.app layout —
+      # xcodebuild won't produce one for us since -exportArchive requires a
+      # real signing identity, so we assemble it by hand.
+      - name: Package unsigned .ipa
+        run: |
+          set -euo pipefail
+          PRODUCTS_DIR="ios/build/Build/Products/Release-iphoneos"
+          APP_PATH="$PRODUCTS_DIR/AxeTask.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "Expected app bundle not found at $APP_PATH" >&2
+            ls -R "$PRODUCTS_DIR" || true
+            exit 1
+          fi
+          mkdir -p output/Payload
+          cp -r "$APP_PATH" output/Payload/
+          (cd output && zip -r -y AxeTask-unsigned.ipa Payload)
+          rm -rf output/Payload
+
+      - name: Upload .ipa artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AxeTask-unsigned-ipa
+          path: output/AxeTask-unsigned.ipa
+          retention-days: 14

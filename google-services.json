@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "281684414474",
+    "project_id": "axetask-e5ae0",
+    "storage_bucket": "axetask-e5ae0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:281684414474:android:eb7cc250971b7d69148ff3",
+        "android_client_info": {
+          "package_name": "com.anonymous.axetaskmobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDqkzmDKBBv0Ww8L2wAmgZmuQJNVGsbW5k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

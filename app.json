@@ -1,0 +1,67 @@
+{
+  "expo": {
+    "name": "AxeTask",
+    "slug": "axetask-mobile",
+    "version": "1.5.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#090D16",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.axetaskmobile"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#D9D9D9",
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "monochromeImage": "./assets/adaptive-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.anonymous.axetaskmobile",
+      "versionCode": 7
+    },
+    "web": {
+      "favicon": "./assets/axetask-mark.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "@react-native-community/datetimepicker",
+      [
+        "expo-notifications",
+        {
+          "color": "#2563EB",
+          "defaultChannel": "default",
+          "sounds": [
+            "./assets/sounds/crystal_bell.wav",
+            "./assets/sounds/marimba_pop.wav",
+            "./assets/sounds/digital_ping.wav",
+            "./assets/sounds/harmonic_success.wav",
+            "./assets/sounds/harp_chime.wav",
+            "./assets/sounds/subtle_tap.wav",
+            "./assets/sounds/alarm.wav"
+          ],
+          "icon": "./assets/notification-icon.png"
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/axetask-logo.png",
+          "imageWidth": 220,
+          "resizeMode": "contain",
+          "backgroundColor": "#090D16"
+        }
+      ],
+      "expo-sharing",
+      "expo-background-task",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "AxeTask utilise le micro pour enregistrer tes réunions et en rédiger le compte rendu.",
+          "enableBackgroundRecording": true
+        }
+      ]
+    ]
+  }
+}
